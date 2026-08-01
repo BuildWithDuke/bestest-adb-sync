@@ -1,5 +1,7 @@
 # Bestest ADB Sync
 
+[![tests](https://github.com/BuildWithDuke/bestest-adb-sync/actions/workflows/tests.yml/badge.svg)](https://github.com/BuildWithDuke/bestest-adb-sync/actions/workflows/tests.yml)
+
 An [rsync](https://wiki.archlinux.org/title/rsync)-like program to sync files between a computer and an Android device
 
 > **This is a modified fork.**
@@ -49,7 +51,14 @@ Also fixed:
   entire sync ([#53](https://github.com/jb2170/better-adb-sync/issues/53))
 - seconds are preserved when restoring mtimes on the device
 
-There is a test suite (`pytest`); none of it requires a connected device.
+There is a test suite; none of it requires a connected device:
+
+```
+$ pip install -e '.[dev]'
+$ pytest
+```
+
+It runs in CI against Python 3.8 through 3.13 on Linux, and 3.12 on macOS.
 
 ## Installation
 

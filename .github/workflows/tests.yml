@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: py${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        include:
+          # 3.8 is EOL and not published for the ubuntu-24.04 runner image
+          - os: ubuntu-22.04
+            python: "3.8"
+          # the tool is commonly driven from a Mac against a USB device
+          - os: macos-latest
+            python: "3.12"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install
+        run: pip install -e '.[dev]'
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Check the CLI starts
+        # no device is attached here, so this only confirms the entry point and
+        # argument parsing are wired up
+        run: |
+          adbsync --version
+          adbsync --help > /dev/null
