@@ -8,9 +8,9 @@ import stat
 
 import pytest
 
-from BetterADBSync import FileSyncer
-from BetterADBSync.FileSystems.Base import FileMeta
-from BetterADBSync.FileSystems.Android import AndroidFileSystem, UnparseableLsLine
+from BestestADBSync import FileSyncer
+from BestestADBSync.FileSystems.Base import FileMeta
+from BestestADBSync.FileSystems.Android import AndroidFileSystem, UnparseableLsLine
 
 
 def make_afs(find_supported: bool = True) -> AndroidFileSystem:

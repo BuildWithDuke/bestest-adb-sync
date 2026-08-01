@@ -1,14 +1,68 @@
-# Better ADB Sync
+# Bestest ADB Sync
 
 An [rsync](https://wiki.archlinux.org/title/rsync)-like program to sync files between a computer and an Android device
 
+> **This is a modified fork.**
+> It is based on [jb2170/better-adb-sync](https://github.com/jb2170/better-adb-sync)
+> (Apache License 2.0), which has been unmaintained since September 2023. The
+> files in `src/BestestADBSync/` have been changed from the upstream versions;
+> see [What this fork changes](#what-this-fork-changes) below.
+> Upstream in turn is a rewrite of Google's [adb-sync](https://github.com/google/adb-sync).
+
+## What this fork changes
+
+**Sync compares file size, not just mtime.** Upstream decides a file is already
+synced using `source_mtime > destination_mtime` alone, having parsed the size
+from `ls` and then discarded it. This silently corrupts archives: an interrupted
+transfer leaves a truncated file whose mtime is the moment it was written, which
+is *newer* than the source, so it is never re-fetched and stays truncated
+forever. Fixes upstream issues
+[#23](https://github.com/jb2170/better-adb-sync/issues/23) and
+[#32](https://github.com/jb2170/better-adb-sync/issues/32).
+
+**File metadata is read with one device-side `find`** rather than a recursive
+per-directory `ls -la` walk:
+
+- `-printf %T@` yields a real epoch timestamp, so mtimes no longer depend on
+  parsing the device's *rendering* of a date in the host's timezone, no longer
+  truncate to the minute ([#48](https://github.com/jb2170/better-adb-sync/issues/48)),
+  and no longer break on files older than six months
+  ([#54](https://github.com/jb2170/better-adb-sync/issues/54))
+- NUL-separated records keep filenames containing newlines intact
+  ([#56](https://github.com/jb2170/better-adb-sync/issues/56))
+- one round trip replaces one per directory
+
+Devices whose `find` lacks `-printf` fall back to the previous `ls` parsing. A
+per-filesystem `mtime_precision` feeds a comparison tolerance, so that path's
+minute resolution does not make every file look perpetually stale.
+
+Also fixed:
+
+- device output is decoded with `surrogateescape`, so filenames that are not
+  valid in the chosen encoding no longer raise `UnicodeDecodeError`
+  ([#42](https://github.com/jb2170/better-adb-sync/issues/42),
+  [#44](https://github.com/jb2170/better-adb-sync/issues/44),
+  [#51](https://github.com/jb2170/better-adb-sync/issues/51))
+- a failed constructor no longer masks its own error with `AttributeError`
+  during teardown ([#43](https://github.com/jb2170/better-adb-sync/issues/43))
+- one unparseable `ls` entry is skipped with a warning instead of aborting the
+  entire sync ([#53](https://github.com/jb2170/better-adb-sync/issues/53))
+- seconds are preserved when restoring mtimes on the device
+
+There is a test suite (`pytest`); none of it requires a connected device.
+
 ## Installation
 
-Available on [PyPI](https://pypi.org/project/BetterADBSync/)
+From source:
 
 ```
-$ pip install BetterADBSync
+$ git clone https://github.com/BuildWithDuke/bestest-adb-sync
+$ cd bestest-adb-sync
+$ pip install .
 ```
+
+Note that `pip install BetterADBSync` installs **upstream** from
+[PyPI](https://pypi.org/project/BetterADBSync/), not this fork.
 
 ## QRD
 
