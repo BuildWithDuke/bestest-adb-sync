@@ -5,8 +5,16 @@ description = "Better version of adb-sync for Python3"
 readme = "README.md"
 license = {file = "LICENSE"}
 
+requires-python = ">=3.8"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
 [project.urls]
 Homepage = "https://github.com/jb2170/better-adb-sync/"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [project.scripts]
 adbsync = "BetterADBSync:main"

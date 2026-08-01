@@ -1,12 +1,30 @@
 from __future__ import annotations
-from typing import Iterable, List, Tuple, Union
+from typing import Iterable, List, NamedTuple, Optional, Tuple, Union
 import logging
 import os
 import stat
 
 from ..SAOLogging import perror
 
+class FileMeta(NamedTuple):
+    """Leaf of a file tree: the metadata sync decisions are made from.
+
+    Subclasses tuple, so the `isinstance(x, tuple)` checks that distinguish a
+    file leaf from a directory dict throughout the codebase still hold.
+
+    st_size is None only for directories (the "." entry of a tree dict), which
+    are never compared against each other for content.
+    """
+    atime: int
+    mtime: int
+    size: Optional[int]
+
 class FileSystem():
+    # Granularity, in seconds, of the mtimes this filesystem can report and set.
+    # Comparisons allow for the coarser of the two filesystems involved, so a
+    # backend that can only see whole minutes does not cause endless recopying.
+    mtime_precision: int = 1
+
     def __init__(self, adb_arguments: List[str]) -> None:
         self.adb_arguments = adb_arguments
 
@@ -26,7 +44,7 @@ class FileSystem():
                 return None
             return self._get_files_tree(tree_path_realpath, tree_path_stat_realpath, follow_links = follow_links)
         elif stat.S_ISDIR(tree_path_stat.st_mode):
-            tree = {".": (60 * (int(tree_path_stat.st_atime) // 60), 60 * (int(tree_path_stat.st_mtime) // 60))}
+            tree = {".": FileMeta(int(tree_path_stat.st_atime), int(tree_path_stat.st_mtime), None)}
             for filename, stat_object_child, in self.lstat_in_dir(tree_path):
                 if filename in [".", ".."]:
                     continue
@@ -36,9 +54,10 @@ class FileSystem():
                     follow_links = follow_links)
             return tree
         elif stat.S_ISREG(tree_path_stat.st_mode):
-            return (60 * (int(tree_path_stat.st_atime) // 60), 60 * (int(tree_path_stat.st_mtime) // 60)) # minute resolution
+            return FileMeta(int(tree_path_stat.st_atime), int(tree_path_stat.st_mtime), tree_path_stat.st_size)
         else:
-            raise NotImplementedError
+            logging.warning(f"Ignoring special file {tree_path}")
+            return None
 
     def get_files_tree(self, tree_path: str, follow_links: bool = False):
         statObject = self.lstat(tree_path)
@@ -78,7 +97,7 @@ class FileSystem():
                     # log this instead of letting adb display output
                     logging.info(f"{relative_tree_path}")
                 self.push_file_here(tree_path, destination_root, show_progress = show_progress)
-                self.utime(destination_root, tree)
+                self.utime(destination_root, (tree[0], tree[1]))
         elif isinstance(tree, dict):
             try:
                 tree.pop(".") # directory needs making

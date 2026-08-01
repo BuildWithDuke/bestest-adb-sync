@@ -18,6 +18,25 @@ from .FileSystems.Local import LocalFileSystem
 from .FileSystems.Android import AndroidFileSystem
 
 class FileSyncer():
+    @staticmethod
+    def needs_copy(source: tuple, destination: tuple, mtime_tolerance: int = 0) -> bool:
+        """Whether a source file must be recopied over the destination file.
+
+        Size is checked as well as mtime. Comparing mtime alone means an
+        interrupted transfer is never repaired: the truncated destination file
+        carries the mtime of the moment it was written, which is *newer* than
+        the source, so it looks up to date forever (issues #23, #32).
+
+        mtime_tolerance absorbs the resolution of the coarser of the two
+        filesystems, so a backend that only reports whole minutes does not make
+        every file look perpetually stale.
+        """
+        size_source = source[2] if len(source) > 2 else None
+        size_destination = destination[2] if len(destination) > 2 else None
+        if size_source is not None and size_destination is not None and size_source != size_destination:
+            return True
+        return source[1] - destination[1] > mtime_tolerance
+
     @classmethod
     def diff_trees(cls,
         source: Union[dict, Tuple[int, int], None],
@@ -28,6 +47,7 @@ class FileSyncer():
         path_join_function_source,
         path_join_function_destination,
         folder_file_overwrite_error: bool = True,
+        mtime_tolerance: int = 0,
         ) -> Tuple[
             Union[dict, Tuple[int, int], None], # delete
             Union[dict, Tuple[int, int], None], # copy
@@ -85,7 +105,8 @@ class FileSyncer():
                             destination_exclude_patterns,
                             path_join_function_source,
                             path_join_function_destination,
-                            folder_file_overwrite_error = folder_file_overwrite_error
+                            folder_file_overwrite_error = folder_file_overwrite_error,
+                            mtime_tolerance = mtime_tolerance
                         )
             else:
                 raise NotImplementedError
@@ -112,7 +133,7 @@ class FileSyncer():
                     unaccounted_destination = None
                     excluded_destination = destination
                 else:
-                    if source[1] > destination[1]:
+                    if cls.needs_copy(source, destination, mtime_tolerance):
                         delete = destination
                         copy = source
                         excluded_source = None
@@ -169,7 +190,8 @@ class FileSyncer():
                             destination_exclude_patterns,
                             path_join_function_source,
                             path_join_function_destination,
-                            folder_file_overwrite_error = folder_file_overwrite_error
+                            folder_file_overwrite_error = folder_file_overwrite_error,
+                            mtime_tolerance = mtime_tolerance
                         )
             elif isinstance(destination, tuple):
                 if exclude:
@@ -194,7 +216,8 @@ class FileSyncer():
                             destination_exclude_patterns,
                             path_join_function_source,
                             path_join_function_destination,
-                            folder_file_overwrite_error = folder_file_overwrite_error
+                            folder_file_overwrite_error = folder_file_overwrite_error,
+                            mtime_tolerance = mtime_tolerance
                         )
                     if folder_file_overwrite_error:
                         logging.critical(f"Refusing to overwrite file {path_destination} with directory {path_source}")
@@ -225,7 +248,8 @@ class FileSyncer():
                             destination_exclude_patterns,
                             path_join_function_source,
                             path_join_function_destination,
-                            folder_file_overwrite_error = folder_file_overwrite_error
+                            folder_file_overwrite_error = folder_file_overwrite_error,
+                            mtime_tolerance = mtime_tolerance
                         )
                     destination.pop(".")
                     for key, value in destination.items():
@@ -237,7 +261,8 @@ class FileSyncer():
                             destination_exclude_patterns,
                             path_join_function_source,
                             path_join_function_destination,
-                            folder_file_overwrite_error = folder_file_overwrite_error
+                            folder_file_overwrite_error = folder_file_overwrite_error,
+                            mtime_tolerance = mtime_tolerance
                         )
             else:
                 raise NotImplementedError
@@ -412,7 +437,8 @@ def main():
         excludePatterns,
         fs_source.join,
         fs_destination.join,
-        folder_file_overwrite_error = not args.dry_run and not args.force
+        folder_file_overwrite_error = not args.dry_run and not args.force,
+        mtime_tolerance = max(fs_source.mtime_precision, fs_destination.mtime_precision)
     )
 
     tree_delete                  = FileSyncer.prune_tree(tree_delete)
